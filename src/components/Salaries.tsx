@@ -12,11 +12,12 @@ export function Salaries() {
     amount: '',
     date: new Date().toISOString().split('T')[0],
     description: '',
-    isReceived: true,
+    isReceived: false,
     linkedAssetId: ''
   });
 
   const [receiveAssetId, setReceiveAssetId] = useState('');
+  const [actualAmount, setActualAmount] = useState('');
 
   const bankAssets = assets.filter(a => ['cash', 'investment', 'emergency_fund'].includes(a.type));
 
@@ -38,7 +39,7 @@ export function Salaries() {
       amount: '',
       date: new Date().toISOString().split('T')[0],
       description: '',
-      isReceived: true,
+      isReceived: false,
       linkedAssetId: ''
     });
     setIsAdding(false);
@@ -50,6 +51,7 @@ export function Salaries() {
     } else {
       setReceivingSalary(salary);
       setReceiveAssetId('');
+      setActualAmount(salary.amount.toString());
     }
   };
 
@@ -57,7 +59,8 @@ export function Salaries() {
     if (receivingSalary) {
       updateSalary(receivingSalary.id, { 
         isReceived: true, 
-        linkedAssetId: receiveAssetId || undefined 
+        linkedAssetId: receiveAssetId || undefined,
+        amount: Number(actualAmount) || receivingSalary.amount
       });
       setReceivingSalary(null);
     }
@@ -210,9 +213,21 @@ export function Salaries() {
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-[#ffb800]" /> Mark as Received
               </h2>
-              <p className="text-[#808080] mb-6">Select the account where this income (₹{receivingSalary.amount.toLocaleString()}) was deposited.</p>
+              <p className="text-[#808080] mb-6">Confirm the amount received and select the account where it was deposited.</p>
               
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Actual Amount Received (₹)</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={actualAmount}
+                    onChange={e => setActualAmount(e.target.value)}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs text-[#808080] uppercase tracking-wider">Deposit To</label>
                   <select 
