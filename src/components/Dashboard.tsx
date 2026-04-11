@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Wallet, AlertTriangle, TrendingUp, Landmark, CheckCircle2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Wallet, AlertTriangle, TrendingUp, Landmark, CheckCircle2, X, Clock, Shield } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function Dashboard() {
-  const { transactions = [], assets = [], liabilities = [], insurances = [], addTransaction } = useFinance();
+  const { transactions = [], assets = [], liabilities = [], insurance = [], salaries = [], addTransaction, updateLiability } = useFinance();
+
+  const [payingLiability, setPayingLiability] = useState<string | null>(null);
+  const [paymentDetails, setPaymentDetails] = useState({
+    amount: '',
+    principal: '',
+    interest: '',
+    isBreakdown: false
+  });
 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -27,6 +36,9 @@ export function Dashboard() {
   const netWorth = totalAssets - totalLiabilities;
   const debtToAssetRatio = totalAssets > 0 ? ((totalLiabilities / totalAssets) * 100).toFixed(1) : '0';
   const emergencyFund = assets.filter(a => a.type === 'emergency_fund').reduce((acc, a) => acc + a.amount, 0);
+
+  const receivedSalary = salaries.filter(s => s.status === 'received').reduce((acc, s) => acc + s.amount, 0);
+  const pendingSalary = salaries.filter(s => s.status === 'pending').reduce((acc, s) => acc + s.amount, 0);
 
   // Automated Metrics
   const totalMonthlySIP = assets.reduce((acc, a) => acc + (a.monthlyContribution || 0), 0);
@@ -91,13 +103,48 @@ export function Dashboard() {
   };
 
   const handleMarkAsPaid = (payment: typeof upcomingPayments[0]) => {
+    if (payment.type === 'emi') {
+      setPayingLiability(payment.id);
+      setPaymentDetails({ ...paymentDetails, amount: payment.amount.toString() });
+    } else {
+      addTransaction({
+        type: 'expense',
+        amount: payment.amount,
+        category: payment.category,
+        date: new Date().toISOString().split('T')[0],
+        description: `${payment.category} Payment: ${payment.name}`
+      });
+    }
+  };
+
+  const handlePaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingLiability) return;
+
+    const liability = liabilities.find(l => l.id === payingLiability);
+    if (!liability) return;
+
+    const totalAmount = Number(paymentDetails.amount);
+    const principal = paymentDetails.isBreakdown ? Number(paymentDetails.principal) : totalAmount;
+    const interest = paymentDetails.isBreakdown ? Number(paymentDetails.interest) : 0;
+
     addTransaction({
-      type: payment.type === 'sip' ? 'expense' : 'emi',
-      amount: payment.amount,
-      category: payment.category,
+      type: 'expense',
+      amount: totalAmount,
+      category: 'EMI Payment',
+      description: `EMI Payment: ${liability.name}`,
       date: new Date().toISOString().split('T')[0],
-      description: `${payment.category} Payment: ${payment.name}`
+      liabilityId: liability.id,
+      principalAmount: principal,
+      interestAmount: interest
     });
+
+    updateLiability(liability.id, {
+      amount: Math.max(0, liability.amount - principal)
+    });
+
+    setPayingLiability(null);
+    setPaymentDetails({ amount: '', principal: '', interest: '', isBreakdown: false });
   };
 
   return (
@@ -115,9 +162,10 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           title="Monthly Income" 
-          amount={income} 
+          amount={receivedSalary} 
           icon={<ArrowUpRight className="text-[#00ff9d]" />} 
           color="text-[#00ff9d]"
+          trend={pendingSalary > 0 ? `+₹${pendingSalary.toLocaleString()} pending` : 'Stable'}
         />
         <StatCard 
           title="Total Outflow" 
@@ -133,11 +181,10 @@ export function Dashboard() {
           isCurrency={false}
         />
         <StatCard 
-          title="Debt/Asset Ratio" 
-          amount={`${debtToAssetRatio}%`} 
-          icon={<AlertTriangle className="text-[#ffb800]" />} 
-          color="text-[#ffb800]"
-          isCurrency={false}
+          title="Protection" 
+          amount={insurance.reduce((acc, i) => acc + i.coverageAmount, 0)} 
+          icon={<Shield className="text-[#a855f7]" />} 
+          color="text-[#a855f7]"
         />
       </div>
 
@@ -452,11 +499,104 @@ export function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Payment Modal */}
+      <AnimatePresence>
+        {payingLiability && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass-panel w-full max-w-md p-6 rounded-2xl border border-[#00f0ff]/30 shadow-[0_0_50px_rgba(0,240,255,0.1)]"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Landmark className="w-5 h-5 text-[#00f0ff]" /> Record Payment
+                </h2>
+                <button onClick={() => setPayingLiability(null)} className="text-[#808080] hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Total Amount Paid (₹)</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={paymentDetails.amount}
+                    onChange={e => setPaymentDetails({...paymentDetails, amount: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00f0ff] transition-colors font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 py-2">
+                  <input 
+                    type="checkbox" 
+                    id="breakdown"
+                    checked={paymentDetails.isBreakdown}
+                    onChange={e => setPaymentDetails({...paymentDetails, isBreakdown: e.target.checked})}
+                    className="w-4 h-4 rounded border-[#1f1f1f] bg-[#141414] text-[#00f0ff] focus:ring-[#00f0ff]"
+                  />
+                  <label htmlFor="breakdown" className="text-xs text-[#e0e0e0] uppercase tracking-wider cursor-pointer">
+                    Specify Principal & Interest
+                  </label>
+                </div>
+
+                {paymentDetails.isBreakdown && (
+                  <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="space-y-2">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Principal (₹)</label>
+                      <input 
+                        type="number" 
+                        required
+                        value={paymentDetails.principal}
+                        onChange={e => setPaymentDetails({...paymentDetails, principal: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00f0ff] transition-colors font-mono text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Interest (₹)</label>
+                      <input 
+                        type="number" 
+                        required
+                        value={paymentDetails.interest}
+                        onChange={e => setPaymentDetails({...paymentDetails, interest: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00f0ff] transition-colors font-mono text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setPayingLiability(null)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-[#1f1f1f] text-[#808080] hover:bg-[#1f1f1f] transition-colors font-mono text-sm"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-[#00f0ff] text-[#050505] font-bold px-4 py-2 rounded-lg hover:bg-[#00f0ff]/80 transition-colors shadow-[0_0_15px_rgba(0,240,255,0.3)]"
+                  >
+                    CONFIRM
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function StatCard({ title, amount, icon, color, isCurrency = true }: { title: string, amount: number | string, icon: React.ReactNode, color: string, isCurrency?: boolean }) {
+function StatCard({ title, amount, icon, color, isCurrency = true, trend }: { title: string, amount: number | string, icon: React.ReactNode, color: string, isCurrency?: boolean, trend?: string }) {
   return (
     <div className="glass-panel p-5 rounded-xl border-l-2 border-l-transparent hover:border-l-[#00f0ff] transition-all">
       <div className="flex justify-between items-start mb-2">
@@ -466,6 +606,7 @@ function StatCard({ title, amount, icon, color, isCurrency = true }: { title: st
       <div className={`text-3xl font-mono ${color}`}>
         {isCurrency && typeof amount === 'number' ? `₹${amount.toLocaleString('en-IN')}` : amount}
       </div>
+      {trend && <div className="text-[10px] text-[#404040] font-mono mt-2 uppercase tracking-widest">{trend}</div>}
     </div>
   );
 }
