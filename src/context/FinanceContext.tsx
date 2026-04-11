@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 
 export type TransactionType = 'income' | 'expense' | 'emi';
 export type AssetType = 'emergency_fund' | 'nps' | 'investment' | 'cash' | 'sip' | 'epf' | 'ppf' | 'fd' | 'gold' | 'real_estate';
@@ -259,33 +262,58 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const exportData = async () => {
     const dataStr = JSON.stringify(state, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const file = new File([blob], `dhanrakshak_backup_${new Date().toISOString().split('T')[0]}.json`, { type: 'application/json' });
+    const fileName = `dhanrakshak_backup_${new Date().toISOString().split('T')[0]}.json`;
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (Capacitor.isNativePlatform()) {
       try {
-        await navigator.share({
-          files: [file],
+        // Write to cache directory temporarily
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: dataStr,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8
+        });
+
+        // Share the file to Drive, WhatsApp, etc.
+        await Share.share({
           title: 'Dhanrakshak Data Backup',
-          text: 'My financial data backup from Dhanrakshak App'
+          text: 'My financial data backup from Dhanrakshak App',
+          url: result.uri,
+          dialogTitle: 'Save or Share Backup'
         });
       } catch (error) {
-        if ((error as Error).name !== 'AbortError') {
-          console.error('Error sharing:', error);
-          downloadFallback(dataStr);
-        }
+        console.error('Error sharing native:', error);
+        alert('Failed to export data. Please try again.');
       }
     } else {
-      downloadFallback(dataStr);
+      // Web fallback
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const file = new File([blob], fileName, { type: 'application/json' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Dhanrakshak Data Backup',
+            text: 'My financial data backup from Dhanrakshak App'
+          });
+        } catch (error) {
+          if ((error as Error).name !== 'AbortError') {
+            console.error('Error sharing:', error);
+            downloadFallback(dataStr, fileName);
+          }
+        }
+      } else {
+        downloadFallback(dataStr, fileName);
+      }
     }
   };
 
-  const downloadFallback = (dataStr: string) => {
+  const downloadFallback = (dataStr: string, fileName: string) => {
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = `dhanrakshak_backup_${new Date().toISOString().split('T')[0]}.json`;
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.setAttribute('download', fileName);
     linkElement.click();
   };
 
