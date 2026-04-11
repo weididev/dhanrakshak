@@ -15,6 +15,18 @@ export interface Transaction {
   category: string;
   date: string;
   description: string;
+  principalAmount?: number;
+  interestAmount?: number;
+  liabilityId?: string;
+}
+
+export interface Salary {
+  id: string;
+  amount: number;
+  date: string;
+  description: string;
+  isReceived: boolean;
+  linkedAssetId?: string;
 }
 
 export interface Asset {
@@ -75,6 +87,7 @@ export interface FinanceState {
   liabilities: Liability[];
   insurances: Insurance[];
   budgets: Budget[];
+  salaries: Salary[];
   userProfile: UserProfile;
   nameHistory: string[];
 }
@@ -91,6 +104,9 @@ interface FinanceContextType extends FinanceState {
   deleteLiability: (id: string) => void;
   addInsurance: (i: Omit<Insurance, 'id'>) => void;
   deleteInsurance: (id: string) => void;
+  addSalary: (s: Omit<Salary, 'id'>) => void;
+  updateSalary: (id: string, s: Partial<Salary>) => void;
+  deleteSalary: (id: string) => void;
   setBudget: (b: Budget) => void;
   deleteBudget: (category: string) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
@@ -106,6 +122,7 @@ const defaultState: FinanceState = {
   liabilities: [],
   insurances: [],
   budgets: [],
+  salaries: [],
   userProfile: {
     name: '',
     dependents: 0,
@@ -216,6 +233,61 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
       ...prev,
       insurances: prev.insurances.filter(i => i.id !== id)
+    }));
+  };
+
+  const addSalary = (s: Omit<Salary, 'id'>) => {
+    setState(prev => ({
+      ...prev,
+      salaries: [{ ...s, id: crypto.randomUUID() }, ...prev.salaries]
+    }));
+  };
+
+  const updateSalary = (id: string, s: Partial<Salary>) => {
+    setState(prev => {
+      const salary = prev.salaries.find(item => item.id === id);
+      if (!salary) return prev;
+
+      const updatedSalary = { ...salary, ...s };
+      let updatedAssets = prev.assets;
+      let updatedTransactions = prev.transactions;
+
+      // If salary is being marked as received for the first time
+      if (!salary.isReceived && updatedSalary.isReceived) {
+        // Add transaction
+        const newTransaction: Transaction = {
+          id: crypto.randomUUID(),
+          type: 'income',
+          amount: updatedSalary.amount,
+          category: 'Salary',
+          date: new Date().toISOString().split('T')[0],
+          description: updatedSalary.description || 'Salary Received'
+        };
+        updatedTransactions = [newTransaction, ...prev.transactions];
+
+        // Update linked asset balance if exists
+        if (updatedSalary.linkedAssetId) {
+          updatedAssets = prev.assets.map(asset => 
+            asset.id === updatedSalary.linkedAssetId 
+              ? { ...asset, amount: asset.amount + updatedSalary.amount }
+              : asset
+          );
+        }
+      }
+
+      return {
+        ...prev,
+        salaries: prev.salaries.map(item => item.id === id ? updatedSalary : item),
+        assets: updatedAssets,
+        transactions: updatedTransactions
+      };
+    });
+  };
+
+  const deleteSalary = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      salaries: prev.salaries.filter(s => s.id !== id)
     }));
   };
 
@@ -349,6 +421,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteLiability,
       addInsurance,
       deleteInsurance,
+      addSalary,
+      updateSalary,
+      deleteSalary,
       setBudget,
       deleteBudget,
       updateProfile,
