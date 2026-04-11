@@ -18,6 +18,7 @@ import { Insurance } from './components/Insurance';
 import { Strategies } from './components/Strategies';
 import { Onboarding } from './components/Onboarding';
 import { Profile } from './components/Profile';
+import { Salaries } from './components/Salaries';
 
 function MainApp() {
   const { userProfile } = useFinance();
@@ -53,6 +54,7 @@ function MainApp() {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
       {activeTab === 'dashboard' && <Dashboard />}
+      {activeTab === 'salaries' && <Salaries />}
       {activeTab === 'transactions' && <Transactions />}
       {activeTab === 'assets' && <Assets />}
       {activeTab === 'liabilities' && <Liabilities />}
