@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Wallet, Shield, TrendingUp, BookOpen, Menu, X, Landmark, UserCircle, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, Wallet, Shield, TrendingUp, BookOpen, Menu, X, Landmark, UserCircle, MoreHorizontal, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useFinance } from '../context/FinanceContext';
 
@@ -15,7 +15,8 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'transactions', label: 'Cashflow', icon: Wallet },
+    { id: 'salaries', label: 'Income', icon: Wallet },
+    { id: 'transactions', label: 'Cashflow', icon: Clock },
     { id: 'assets', label: 'Assets', icon: TrendingUp },
     { id: 'liabilities', label: 'Debt', icon: Landmark },
     { id: 'insurance', label: 'Protection', icon: Shield },
