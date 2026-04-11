@@ -27,7 +27,7 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
   return (
     <div className="min-h-screen bg-[#050505] text-[#e0e0e0] flex flex-col md:flex-row overflow-hidden">
       {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-[#1f1f1f] bg-[#0a0a0a] z-20 sticky top-0">
+      <div className="md:hidden flex items-center justify-between p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] border-b border-[#1f1f1f] bg-[#0a0a0a] z-20 sticky top-0">
         <div className="flex items-center gap-2">
           <Shield className="w-6 h-6 text-[#00f0ff]" />
           <span className="font-sans font-bold text-lg tracking-wider text-white">DHANRAKSHAK</span>
@@ -97,7 +97,7 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 h-[calc(100vh-65px)] md:h-screen overflow-y-auto p-4 md:p-8 relative pb-24 md:pb-8">
+      <main className="flex-1 h-[calc(100vh-65px)] md:h-screen overflow-y-auto p-4 md:p-8 relative pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
         {/* Decorative Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
           <div className="absolute top-[-10%] right-[-5%] w-[40%] h-[40%] rounded-full bg-[#00f0ff]/5 blur-[120px]"></div>
@@ -123,9 +123,10 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#0a0a0a]/80 backdrop-blur-lg border-t border-[#1f1f1f] flex justify-around p-2 z-20">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#0a0a0a]/80 backdrop-blur-lg border-t border-[#1f1f1f] flex justify-around p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] z-20">
         {[
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'salaries', label: 'Income', icon: Wallet },
           { id: 'assets', label: 'Assets', icon: TrendingUp },
           { id: 'liabilities', label: 'Debts', icon: Landmark },
         ].map((item) => {
