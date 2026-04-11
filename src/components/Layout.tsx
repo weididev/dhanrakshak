@@ -129,13 +129,20 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
           { id: 'salaries', label: 'Income', icon: Wallet },
           { id: 'assets', label: 'Assets', icon: TrendingUp },
           { id: 'liabilities', label: 'Debts', icon: Landmark },
+          { id: 'menu', label: 'More', icon: MoreHorizontal },
         ].map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.id === 'menu') {
+                  setIsMobileMenuOpen(true);
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={cn(
                 "flex flex-col items-center gap-1 p-2 rounded-lg transition-all",
                 isActive ? "text-[#00f0ff]" : "text-[#808080]"
