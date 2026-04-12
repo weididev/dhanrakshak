@@ -19,7 +19,9 @@ export function Assets() {
     pfId: '',
     quantity: '',
     purchasePrice: '',
-    companyName: ''
+    companyName: '',
+    creationDate: '',
+    maturityDate: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,7 +52,9 @@ export function Assets() {
       ...(formData.pfId ? { pfId: formData.pfId } : {}),
       ...(formData.quantity ? { quantity: Number(formData.quantity) } : {}),
       ...(formData.purchasePrice ? { purchasePrice: Number(formData.purchasePrice) } : {}),
-      ...(formData.companyName ? { companyName: formData.companyName } : {})
+      ...(formData.companyName ? { companyName: formData.companyName } : {}),
+      ...(formData.creationDate ? { creationDate: formData.creationDate } : {}),
+      ...(formData.maturityDate ? { maturityDate: formData.maturityDate } : {})
     });
     
     setFormData({
@@ -63,7 +67,9 @@ export function Assets() {
       pfId: '',
       quantity: '',
       purchasePrice: '',
-      companyName: ''
+      companyName: '',
+      creationDate: '',
+      maturityDate: ''
     });
     setIsAdding(false);
   };
@@ -88,6 +94,7 @@ export function Assets() {
   const showMonthlyFields = ['sip', 'nps', 'epf', 'ppf'].includes(formData.type);
   const showPfFields = formData.type === 'epf';
   const showNpsFields = formData.type === 'nps';
+  const showDateFields = ['fd', 'gold', 'bond'].includes(formData.type);
 
   return (
     <div className="space-y-6">
@@ -146,6 +153,7 @@ export function Assets() {
                     <option value="ppf">Public Provident Fund (PPF)</option>
                     <option value="fd">Fixed Deposit (FD)</option>
                     <option value="gold">Gold / SGB</option>
+                    <option value="bond">Bond / Debenture</option>
                     <option value="real_estate">Real Estate</option>
                     <option value="cash">Cash / Bank</option>
                   </select>
@@ -315,6 +323,29 @@ export function Assets() {
                   </div>
                 )}
 
+                {showDateFields && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Creation Date (Optional)</label>
+                      <input 
+                        type="date" 
+                        value={formData.creationDate}
+                        onChange={e => setFormData({...formData, creationDate: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00ff9d] transition-colors font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Maturity Date (Optional)</label>
+                      <input 
+                        type="date" 
+                        value={formData.maturityDate}
+                        onChange={e => setFormData({...formData, maturityDate: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#00ff9d] transition-colors font-mono"
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div className="md:col-span-2 flex gap-3 mt-6">
                   <button 
                     type="button"
@@ -356,6 +387,12 @@ export function Assets() {
                     {a.companyName && <div className="text-[10px] text-[#808080] font-mono mt-1">STOCK: {a.companyName}</div>}
                     {a.pfId && <div className="text-[10px] text-[#808080] font-mono mt-1">UAN: {a.pfId}</div>}
                     {a.pranId && <div className="text-[10px] text-[#808080] font-mono mt-1">PRAN: {a.pranId}</div>}
+                    {(a.creationDate || a.maturityDate) && (
+                      <div className="text-[10px] text-[#808080] font-mono mt-1 flex flex-wrap gap-x-2">
+                        {a.creationDate && <span>CREATED: {new Date(a.creationDate).toLocaleDateString()}</span>}
+                        {a.maturityDate && <span className="text-[#ffb800]">MATURES: {new Date(a.maturityDate).toLocaleDateString()}</span>}
+                      </div>
+                    )}
                   </td>
                   <td className="p-4 text-sm">
                     <span className={`px-2 py-1 rounded text-xs font-mono ${
