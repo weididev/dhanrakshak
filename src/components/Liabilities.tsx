@@ -4,21 +4,57 @@ import { Plus, Trash2, AlertCircle, CreditCard, Landmark, X } from 'lucide-react
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Liabilities() {
-  const { liabilities = [], addLiability, updateLiability, deleteLiability, nameHistory = [], addToHistory } = useFinance();
+  const { liabilities = [], assets = [], addLiability, updateLiability, deleteLiability, payLiability, nameHistory = [], addToHistory } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
+  const [payingLiability, setPayingLiability] = useState<any | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [formData, setFormData] = useState({
     type: 'loan' as LiabilityType,
     amount: '',
+    totalAmount: '',
     interestRate: '',
     name: '',
     emiAmount: '',
     paymentDay: '',
+    totalTenureMonths: '',
     remainingTenureMonths: '',
     startDate: new Date().toISOString().split('T')[0],
     lastFourDigits: ''
   });
+
+  const [payFormData, setPayFormData] = useState({
+    amount: '',
+    principal: '',
+    interest: '',
+    date: new Date().toISOString().split('T')[0],
+    assetId: ''
+  });
+
+  const handlePaySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingLiability || !payFormData.amount) return;
+
+    payLiability(
+      payingLiability.id,
+      Number(payFormData.amount),
+      Number(payFormData.principal || payFormData.amount),
+      Number(payFormData.interest || 0),
+      payFormData.date,
+      payFormData.assetId || undefined
+    );
+
+    setPayingLiability(null);
+    setPayFormData({
+      amount: '',
+      principal: '',
+      interest: '',
+      date: new Date().toISOString().split('T')[0],
+      assetId: ''
+    });
+  };
+
+  const bankAssets = assets.filter(a => ['cash', 'investment', 'emergency_fund'].includes(a.type));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +64,12 @@ export function Liabilities() {
     addLiability({
       type: formData.type,
       amount: Number(formData.amount),
+      totalAmount: formData.totalAmount ? Number(formData.totalAmount) : Number(formData.amount),
       interestRate: Number(formData.interestRate),
       name: formData.name,
       ...(formData.emiAmount ? { emiAmount: Number(formData.emiAmount) } : {}),
       ...(formData.paymentDay ? { paymentDay: Number(formData.paymentDay) } : {}),
+      ...(formData.totalTenureMonths ? { totalTenureMonths: Number(formData.totalTenureMonths) } : {}),
       ...(formData.remainingTenureMonths ? { remainingTenureMonths: Number(formData.remainingTenureMonths) } : {}),
       startDate: formData.startDate,
       ...(formData.lastFourDigits ? { lastFourDigits: formData.lastFourDigits } : {})
@@ -40,10 +78,12 @@ export function Liabilities() {
     setFormData({
       type: 'loan',
       amount: '',
+      totalAmount: '',
       interestRate: '',
       name: '',
       emiAmount: '',
       paymentDay: '',
+      totalTenureMonths: '',
       remainingTenureMonths: '',
       startDate: new Date().toISOString().split('T')[0],
       lastFourDigits: ''
@@ -60,7 +100,8 @@ export function Liabilities() {
     name.toLowerCase().includes(formData.name.toLowerCase()) && name !== formData.name
   );
 
-  const isLoan = ['loan', 'home_loan', 'car_loan', 'bike_loan', 'education_loan'].includes(formData.type);
+  const isLoan = ['loan', 'home_loan', 'car_loan', 'bike_loan', 'education_loan', 'credit_card'].includes(formData.type);
+  const isCCOutstanding = formData.type === 'cc_outstanding';
 
   return (
     <div className="space-y-6">
@@ -130,7 +171,8 @@ export function Liabilities() {
                     <option value="bike_loan">Bike/Two-Wheeler Loan</option>
                     <option value="education_loan">Education Loan</option>
                     <option value="loan">Personal Loan</option>
-                    <option value="credit_card">Credit Card</option>
+                    <option value="credit_card">Credit Card (EMI/Loan)</option>
+                    <option value="cc_outstanding">Credit Card (Outstanding Bill)</option>
                     <option value="other_debt">Other Debt</option>
                   </select>
                 </div>
@@ -170,6 +212,18 @@ export function Liabilities() {
                 </div>
 
                 <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Total Loan Amount (₹)</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={formData.totalAmount}
+                    onChange={e => setFormData({...formData, totalAmount: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                    placeholder="Original amount"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-xs text-[#808080] uppercase tracking-wider">Outstanding Amount (₹)</label>
                   <input 
                     type="number" 
@@ -180,6 +234,11 @@ export function Liabilities() {
                     className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
                     placeholder="0.00"
                   />
+                  {isCCOutstanding && (
+                    <p className="text-[10px] text-[#808080] font-mono mt-1 italic">
+                      * Use this for current month's credit card bill or total outstanding that isn't converted to EMI.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -222,6 +281,17 @@ export function Liabilities() {
                       />
                     </div>
                     <div className="space-y-2 animate-in fade-in">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Total Tenure (Months)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={formData.totalTenureMonths}
+                        onChange={e => setFormData({...formData, totalTenureMonths: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                        placeholder="e.g. 120"
+                      />
+                    </div>
+                    <div className="space-y-2 animate-in fade-in">
                       <label className="text-xs text-[#808080] uppercase tracking-wider">Remaining Tenure (Months)</label>
                       <input 
                         type="number" 
@@ -242,6 +312,21 @@ export function Liabilities() {
                       />
                     </div>
                   </>
+                )}
+
+                {isCCOutstanding && (
+                  <div className="space-y-2 animate-in fade-in">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Bill Due Date (1-31)</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="31"
+                      value={formData.paymentDay}
+                      onChange={e => setFormData({...formData, paymentDay: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                      placeholder="e.g. 15"
+                    />
+                  </div>
                 )}
 
                 {formData.type === 'credit_card' && (
@@ -294,6 +379,105 @@ export function Liabilities() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {payingLiability && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-panel w-full max-w-md p-6 rounded-2xl border border-[#ffb800]/30 shadow-[0_0_50px_rgba(255,184,0,0.1)]"
+            >
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-[#ffb800]" /> Pay EMI / Debt
+              </h2>
+              <p className="text-[#808080] mb-6 font-mono text-sm uppercase">Liability: {payingLiability.name}</p>
+              
+              <form onSubmit={handlePaySubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Total Amount Paid (₹)</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={payFormData.amount}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setPayFormData({...payFormData, amount: val, principal: val, interest: '0'});
+                    }}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Principal (₹)</label>
+                    <input 
+                      type="number" 
+                      value={payFormData.principal}
+                      onChange={e => setPayFormData({...payFormData, principal: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Interest (₹)</label>
+                    <input 
+                      type="number" 
+                      value={payFormData.interest}
+                      onChange={e => setPayFormData({...payFormData, interest: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Date</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={payFormData.date}
+                    onChange={e => setPayFormData({...payFormData, date: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Pay From</label>
+                  <select 
+                    value={payFormData.assetId}
+                    onChange={e => setPayFormData({...payFormData, assetId: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors"
+                  >
+                    <option value="">No linked account (Transaction only)</option>
+                    {bankAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name} (₹{asset.amount.toLocaleString()})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setPayingLiability(null)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-[#1f1f1f] text-[#808080] hover:bg-[#1f1f1f] transition-colors font-mono text-sm"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-[#ffb800] text-black font-bold px-4 py-2 rounded-lg hover:bg-[#ffb800]/80 transition-colors shadow-[0_0_15px_rgba(255,184,0,0.3)]"
+                  >
+                    CONFIRM PAYMENT
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="glass-panel rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -324,6 +508,9 @@ export function Liabilities() {
                         )}
                       </div>
                       <div className="text-[10px] text-[#808080] font-mono mt-1">{l.interestRate}% INTEREST</div>
+                      {l.totalAmount && (
+                        <div className="text-[10px] text-[#808080] font-mono mt-0.5">TOTAL: ₹{l.totalAmount.toLocaleString('en-IN')}</div>
+                      )}
                       {freedomDate && (
                         <div className="text-[10px] text-[#00ff9d] font-mono mt-1 uppercase">
                           Freedom: {freedomDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
@@ -332,7 +519,7 @@ export function Liabilities() {
                     </td>
                     <td className="p-4 text-sm">
                       <span className={`px-2 py-1 rounded text-xs font-mono ${
-                        l.type === 'credit_card' ? 'bg-[#ff0055]/10 text-[#ff0055] border border-[#ff0055]/20' : 
+                        l.type === 'credit_card' || l.type === 'cc_outstanding' ? 'bg-[#ff0055]/10 text-[#ff0055] border border-[#ff0055]/20' : 
                         'bg-[#ffb800]/10 text-[#ffb800] border border-[#ffb800]/20'
                       }`}>
                         {l.type.replace('_', ' ').toUpperCase()}
@@ -374,15 +561,37 @@ export function Liabilities() {
                           className="w-24 bg-transparent border-b border-[#1f1f1f] text-right text-[10px] text-[#808080] focus:outline-none focus:border-[#ff0055]"
                         />
                       </div>
-                      {l.remainingTenureMonths && <div className="text-[10px] text-[#404040] uppercase mt-1">{l.remainingTenureMonths} Months Left</div>}
+                      {l.remainingTenureMonths && (
+                        <div className="text-[10px] text-[#404040] uppercase mt-1">
+                          {l.remainingTenureMonths} {l.totalTenureMonths ? `/ ${l.totalTenureMonths}` : ''} Months Left
+                        </div>
+                      )}
                     </td>
                     <td className="p-4 text-center">
-                      <button 
-                        onClick={() => deleteLiability(l.id)}
-                        className="text-[#808080] hover:text-[#ff0055] transition-colors p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setPayingLiability(l);
+                            setPayFormData({
+                              ...payFormData,
+                              amount: l.emiAmount?.toString() || '',
+                              principal: '',
+                              interest: '',
+                              assetId: ''
+                            });
+                          }}
+                          className="text-[#ffb800] hover:bg-[#ffb800]/10 p-1.5 rounded-lg transition-colors border border-[#ffb800]/20"
+                          title="Pay EMI"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => deleteLiability(l.id)}
+                          className="text-[#808080] hover:text-[#ff0055] transition-colors p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
