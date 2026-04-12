@@ -4,8 +4,8 @@ import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 
 export type TransactionType = 'income' | 'expense' | 'emi';
-export type AssetType = 'emergency_fund' | 'nps' | 'investment' | 'cash' | 'sip' | 'epf' | 'ppf' | 'fd' | 'gold' | 'real_estate';
-export type LiabilityType = 'loan' | 'credit_card' | 'other_debt' | 'home_loan' | 'car_loan' | 'bike_loan' | 'education_loan';
+export type AssetType = 'emergency_fund' | 'nps' | 'investment' | 'cash' | 'sip' | 'epf' | 'ppf' | 'fd' | 'gold' | 'real_estate' | 'bond';
+export type LiabilityType = 'loan' | 'credit_card' | 'other_debt' | 'home_loan' | 'car_loan' | 'bike_loan' | 'education_loan' | 'cc_outstanding';
 export type InsuranceType = 'life' | 'health';
 
 export interface Transaction {
@@ -25,7 +25,6 @@ export interface Salary {
   amount: number;
   date: string;
   description: string;
-  isReceived: boolean;
   linkedAssetId?: string;
 }
 
@@ -41,16 +40,20 @@ export interface Asset {
   quantity?: number;
   purchasePrice?: number;
   companyName?: string;
+  creationDate?: string;
+  maturityDate?: string;
 }
 
 export interface Liability {
   id: string;
   type: LiabilityType;
-  amount: number;
+  amount: number; // Outstanding Amount
+  totalAmount?: number; // Original Loan Amount
   interestRate: number;
   name: string;
   emiAmount?: number;
   paymentDay?: number;
+  totalTenureMonths?: number;
   remainingTenureMonths?: number;
   startDate?: string;
   lastFourDigits?: string;
@@ -107,6 +110,7 @@ interface FinanceContextType extends FinanceState {
   addSalary: (s: Omit<Salary, 'id'>) => void;
   updateSalary: (id: string, s: Partial<Salary>) => void;
   deleteSalary: (id: string) => void;
+  payLiability: (id: string, amount: number, principal: number, interest: number, date: string, assetId?: string) => void;
   setBudget: (b: Budget) => void;
   deleteBudget: (category: string) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
@@ -237,51 +241,43 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const addSalary = (s: Omit<Salary, 'id'>) => {
-    setState(prev => ({
-      ...prev,
-      salaries: [{ ...s, id: crypto.randomUUID() }, ...prev.salaries]
-    }));
-  };
-
-  const updateSalary = (id: string, s: Partial<Salary>) => {
     setState(prev => {
-      const salary = prev.salaries.find(item => item.id === id);
-      if (!salary) return prev;
+      const newSalary = { ...s, id: crypto.randomUUID() };
+      
+      // Automatically add transaction
+      const newTransaction: Transaction = {
+        id: crypto.randomUUID(),
+        type: 'income',
+        amount: newSalary.amount,
+        category: 'Salary',
+        date: newSalary.date,
+        description: newSalary.description || 'Salary Received'
+      };
 
-      const updatedSalary = { ...salary, ...s };
+      // Update linked asset balance if exists
       let updatedAssets = prev.assets;
-      let updatedTransactions = prev.transactions;
-
-      // If salary is being marked as received for the first time
-      if (!salary.isReceived && updatedSalary.isReceived) {
-        // Add transaction
-        const newTransaction: Transaction = {
-          id: crypto.randomUUID(),
-          type: 'income',
-          amount: updatedSalary.amount,
-          category: 'Salary',
-          date: new Date().toISOString().split('T')[0],
-          description: updatedSalary.description || 'Salary Received'
-        };
-        updatedTransactions = [newTransaction, ...prev.transactions];
-
-        // Update linked asset balance if exists
-        if (updatedSalary.linkedAssetId) {
-          updatedAssets = prev.assets.map(asset => 
-            asset.id === updatedSalary.linkedAssetId 
-              ? { ...asset, amount: asset.amount + updatedSalary.amount }
-              : asset
-          );
-        }
+      if (newSalary.linkedAssetId) {
+        updatedAssets = prev.assets.map(asset => 
+          asset.id === newSalary.linkedAssetId 
+            ? { ...asset, amount: asset.amount + newSalary.amount }
+            : asset
+        );
       }
 
       return {
         ...prev,
-        salaries: prev.salaries.map(item => item.id === id ? updatedSalary : item),
+        salaries: [newSalary, ...prev.salaries],
         assets: updatedAssets,
-        transactions: updatedTransactions
+        transactions: [newTransaction, ...prev.transactions]
       };
     });
+  };
+
+  const updateSalary = (id: string, s: Partial<Salary>) => {
+    setState(prev => ({
+      ...prev,
+      salaries: prev.salaries.map(item => item.id === id ? { ...item, ...s } : item)
+    }));
   };
 
   const deleteSalary = (id: string) => {
@@ -289,6 +285,47 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       ...prev,
       salaries: prev.salaries.filter(s => s.id !== id)
     }));
+  };
+  
+  const payLiability = (id: string, amount: number, principal: number, interest: number, date: string, assetId?: string) => {
+    setState(prev => {
+      const liability = prev.liabilities.find(l => l.id === id);
+      if (!liability) return prev;
+
+      const newTransaction: Transaction = {
+        id: crypto.randomUUID(),
+        type: 'emi',
+        amount,
+        principalAmount: principal,
+        interestAmount: interest,
+        category: 'EMI Payment',
+        date,
+        description: `Payment for ${liability.name}`,
+        liabilityId: id
+      };
+
+      const updatedLiabilities = prev.liabilities.map(l => 
+        l.id === id 
+          ? { ...l, amount: Math.max(0, l.amount - principal) } 
+          : l
+      );
+
+      let updatedAssets = prev.assets;
+      if (assetId) {
+        updatedAssets = prev.assets.map(a => 
+          a.id === assetId 
+            ? { ...a, amount: a.amount - amount }
+            : a
+        );
+      }
+
+      return {
+        ...prev,
+        transactions: [newTransaction, ...prev.transactions],
+        liabilities: updatedLiabilities,
+        assets: updatedAssets
+      };
+    });
   };
 
   const setBudget = (b: Budget) => {
@@ -424,6 +461,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addSalary,
       updateSalary,
       deleteSalary,
+      payLiability,
       setBudget,
       deleteBudget,
       updateProfile,
