@@ -37,8 +37,15 @@ export function Dashboard() {
   const debtToAssetRatio = totalAssets > 0 ? ((totalLiabilities / totalAssets) * 100).toFixed(1) : '0';
   const emergencyFund = assets.filter(a => a.type === 'emergency_fund').reduce((acc, a) => acc + a.amount, 0);
 
-  const receivedSalary = salaries.filter(s => s.status === 'received').reduce((acc, s) => acc + s.amount, 0);
-  const pendingSalary = salaries.filter(s => s.status === 'pending').reduce((acc, s) => acc + s.amount, 0);
+  const receivedSalary = salaries.filter(s => {
+    const d = new Date(s.date);
+    return s.status === 'received' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).reduce((acc, s) => acc + s.amount, 0);
+
+  const pendingSalary = salaries.filter(s => {
+    const d = new Date(s.date);
+    return s.status === 'pending' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).reduce((acc, s) => acc + s.amount, 0);
 
   // Automated Metrics
   const totalMonthlySIP = assets.reduce((acc, a) => acc + (a.monthlyContribution || 0), 0);
@@ -162,10 +169,10 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           title="Monthly Income" 
-          amount={receivedSalary} 
+          amount={income} 
           icon={<ArrowUpRight className="text-[#00ff9d]" />} 
           color="text-[#00ff9d]"
-          trend={pendingSalary > 0 ? `+₹${pendingSalary.toLocaleString()} pending` : 'Stable'}
+          trend={pendingSalary > 0 ? `+₹${pendingSalary.toLocaleString()} pending` : undefined}
         />
         <StatCard 
           title="Total Outflow" 
