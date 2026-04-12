@@ -32,9 +32,6 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
           <Shield className="w-6 h-6 text-[#00f0ff]" />
           <span className="font-sans font-bold text-lg tracking-wider text-white">DHANRAKSHAK</span>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-[#e0e0e0]">
-          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
       </div>
 
       {/* Sidebar (Desktop) */}
