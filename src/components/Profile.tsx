@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { User, Briefcase, Target, Save, CheckCircle2, Download, Upload, AlertTriangle } from 'lucide-react';
+import { User, Briefcase, Target, Save, CheckCircle2, Download, Upload, AlertTriangle, Database } from 'lucide-react';
 
 export function Profile() {
-  const { userProfile, updateProfile, exportData, importData } = useFinance();
+  const { userProfile, updateProfile, exportData, importData, importAxioCSV } = useFinance();
   const [formData, setFormData] = useState(userProfile);
   const [saved, setSaved] = useState(false);
   const [importError, setImportError] = useState(false);
@@ -25,9 +25,16 @@ export function Profile() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      const success = importData(content);
+      
+      let success = false;
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        success = importAxioCSV(content);
+      } else {
+        success = importData(content);
+      }
+
       if (success) {
-        window.location.reload(); // Reload to refresh all components with new state
+        window.location.reload();
       } else {
         setImportError(true);
         setTimeout(() => setImportError(false), 3000);
@@ -58,14 +65,27 @@ export function Profile() {
           <div className="relative">
             <input 
               type="file" 
-              accept=".json"
+              accept=".json,.csv"
               onChange={handleImport}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
             <button 
               className="w-full flex items-center justify-center gap-2 bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/30 px-4 py-3 rounded-xl hover:bg-[#00f0ff]/20 transition-all font-mono text-sm"
             >
-              <Upload className="w-4 h-4" /> IMPORT_BACKUP
+              <Upload className="w-4 h-4" /> IMPORT_DATA (JSON/CSV)
+            </button>
+          </div>
+          <div className="relative">
+            <input 
+              type="file" 
+              accept=".csv"
+              onChange={handleImport}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <button 
+              className="w-full flex items-center justify-center gap-2 bg-[#00ff9d]/5 text-[#00ff9d] border border-[#00ff9d]/20 px-4 py-3 rounded-xl hover:bg-[#00ff9d]/10 transition-all font-mono text-xs"
+            >
+              <Database className="w-3 h-3" /> LOAD_SAMPLE
             </button>
           </div>
         </div>
