@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance, TransactionType } from '../context/FinanceContext';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Search, ArrowUpDown, Filter } from 'lucide-react';
 
 export function Transactions() {
   const { transactions = [], addTransaction, deleteTransaction, nameHistory = [], addToHistory } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showDescriptionSuggestions, setShowDescriptionSuggestions] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
+  const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
 
   const categories = Array.from(new Set([...nameHistory, ...transactions.map(t => t.category).filter(Boolean)]));
   const descriptions = Array.from(new Set([...nameHistory, ...transactions.map(t => t.description).filter(Boolean)]));
@@ -50,6 +54,25 @@ export function Transactions() {
     });
     setIsAdding(false);
   };
+
+  const filteredAndSortedTransactions = useMemo(() => {
+    let result = transactions.filter(t => {
+      const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            t.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = filterType === 'all' || t.type === filterType;
+      return matchesSearch && matchesType;
+    });
+
+    result.sort((a, b) => {
+      if (sortBy === 'date_desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (sortBy === 'date_asc') return new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'amount_asc') return a.amount - b.amount;
+      return 0;
+    });
+
+    return result;
+  }, [transactions, searchTerm, sortBy, filterType]);
 
   return (
     <div className="space-y-6">
@@ -187,6 +210,45 @@ export function Transactions() {
         </div>
       )}
 
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
+          <input 
+            type="text" 
+            placeholder="Search transactions..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-[#00f0ff] transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <Filter className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+            <option value="emi">EMI</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <ArrowUpDown className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="date_desc">Latest First</option>
+            <option value="date_asc">Oldest First</option>
+            <option value="amount_desc">Amount: High to Low</option>
+            <option value="amount_asc">Amount: Low to High</option>
+          </select>
+        </div>
+      </div>
+
       <div className="glass-panel rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -201,7 +263,7 @@ export function Transactions() {
               </tr>
             </thead>
             <tbody>
-              {transactions.length > 0 ? transactions.map((t) => (
+              {filteredAndSortedTransactions.length > 0 ? filteredAndSortedTransactions.map((t) => (
                 <tr key={t.id} className="border-b border-[#1f1f1f]/50 hover:bg-[#141414] transition-colors">
                   <td className="p-4 text-sm text-[#e0e0e0]">{new Date(t.date).toLocaleDateString()}</td>
                   <td className="p-4 text-sm">
