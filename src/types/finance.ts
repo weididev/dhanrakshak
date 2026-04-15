@@ -22,7 +22,6 @@ export interface Salary {
   date: string;
   description: string;
   linkedAssetId?: string;
-  status?: 'pending' | 'received';
 }
 
 export interface Asset {
