@@ -162,7 +162,6 @@ export function parseAxioCSV(csvText: string, currentState: FinanceState): Finan
           amount,
           date: timestamp,
           description,
-          status: 'received',
           linkedAssetId: accountId.startsWith('a-') ? accountId : undefined
         });
         existingSalarySignatures.add(sig);
