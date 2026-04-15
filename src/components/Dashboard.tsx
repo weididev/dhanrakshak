@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Wallet, AlertTriangle, TrendingUp, Landmark, CheckCircle2, X, Clock, Shield } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Wallet, AlertTriangle, TrendingUp, Landmark, CheckCircle2, X, Clock, Shield, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Dashboard() {
   const { transactions = [], assets = [], liabilities = [], insurance = [], salaries = [], addTransaction, updateLiability } = useFinance();
 
   const [payingLiability, setPayingLiability] = useState<string | null>(null);
+  const [chartMonths, setChartMonths] = useState(6);
+  const [pieChartPeriod, setPieChartPeriod] = useState(1); // 1 = this month, 3 = last 3 months, etc.
   const [paymentDetails, setPaymentDetails] = useState({
     amount: '',
     principal: '',
@@ -39,43 +41,61 @@ export function Dashboard() {
 
   const receivedSalary = salaries.filter(s => {
     const d = new Date(s.date);
-    return s.status === 'received' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  }).reduce((acc, s) => acc + s.amount, 0);
-
-  const pendingSalary = salaries.filter(s => {
-    const d = new Date(s.date);
-    return s.status === 'pending' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }).reduce((acc, s) => acc + s.amount, 0);
 
   // Automated Metrics
   const totalMonthlySIP = assets.reduce((acc, a) => acc + (a.monthlyContribution || 0), 0);
   const totalMonthlyEMI = liabilities.reduce((acc, l) => acc + (l.emiAmount || 0), 0);
-  const projected10YearWealth = totalAssets + (totalMonthlySIP * 12 * 10 * 1.08); // Rough 8% return projection
+  
+  const r = 0.12 / 12; // 12% annual return for SIPs
+  const n = 10 * 12; // 10 years
+  const projectedSIPWealth = totalMonthlySIP * ((Math.pow(1 + r, n) - 1) / r) * (1 + r);
+  const projected10YearWealth = (totalAssets * Math.pow(1.08, 10)) + projectedSIPWealth; // 8% on existing assets, 12% on SIPs
 
-  // Chart Data
-  const expenseData = [
-    { name: 'Expenses', value: expense },
-    { name: 'EMI', value: emi },
-    { name: 'Savings', value: savings > 0 ? savings : 0 },
-  ];
+  // Pie Chart Data
+  const pieChartData = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - pieChartPeriod + 1);
+    const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+
+    const periodTransactions = transactions.filter(t => new Date(t.date) >= startDate);
+    
+    const inc = periodTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const exp = periodTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const emiTotal = periodTransactions.filter(t => t.type === 'emi').reduce((acc, t) => acc + t.amount, 0);
+    const sav = inc - (exp + emiTotal);
+
+    return {
+      income: inc,
+      expenseData: [
+        { name: 'Expenses', value: exp },
+        { name: 'EMI', value: emiTotal },
+        { name: 'Savings', value: sav > 0 ? sav : 0 },
+      ]
+    };
+  }, [transactions, pieChartPeriod]);
+
   const COLORS = ['#ff0055', '#ffb800', '#00ff9d'];
 
-  // Last 6 Months Income vs Expense
-  const last6Months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return { month: d.getMonth(), year: d.getFullYear(), label: d.toLocaleString('default', { month: 'short' }) };
-  }).reverse();
+  // History Chart Data
+  const historyData = useMemo(() => {
+    const months = Array.from({ length: chartMonths }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      return { month: d.getMonth(), year: d.getFullYear(), label: d.toLocaleString('default', { month: 'short' }) };
+    }).reverse();
 
-  const historyData = last6Months.map(m => {
-    const monthTransactions = transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === m.month && d.getFullYear() === m.year;
+    return months.map(m => {
+      const monthTransactions = transactions.filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === m.month && d.getFullYear() === m.year;
+      });
+      const inc = monthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+      const exp = monthTransactions.filter(t => t.type === 'expense' || t.type === 'emi').reduce((acc, t) => acc + t.amount, 0);
+      return { name: m.label, income: inc, expense: exp };
     });
-    const inc = monthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const exp = monthTransactions.filter(t => t.type === 'expense' || t.type === 'emi').reduce((acc, t) => acc + t.amount, 0);
-    return { name: m.label, income: inc, expense: exp };
-  });
+  }, [transactions, chartMonths]);
 
   const creditCards = liabilities.filter(l => l.type === 'credit_card');
 
@@ -172,7 +192,6 @@ export function Dashboard() {
           amount={income} 
           icon={<ArrowUpRight className="text-[#00ff9d]" />} 
           color="text-[#00ff9d]"
-          trend={pendingSalary > 0 ? `+₹${pendingSalary.toLocaleString()} pending` : undefined}
         />
         <StatCard 
           title="Total Outflow" 
@@ -220,15 +239,29 @@ export function Dashboard() {
         {/* Charts */}
         <div className="glass-panel p-6 rounded-xl lg:col-span-2 neon-border">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-white">Income vs Expenses (6 Months)</h2>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#00ff9d]"></div>
-                <span className="text-[10px] text-[#808080] uppercase">Income</span>
+            <h2 className="text-lg font-semibold text-white">Income vs Expenses</h2>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-2 py-1">
+                <Filter className="w-3 h-3 text-[#808080]" />
+                <select 
+                  value={chartMonths}
+                  onChange={(e) => setChartMonths(Number(e.target.value))}
+                  className="bg-transparent text-[#808080] focus:outline-none text-xs font-mono"
+                >
+                  <option value={3}>Last 3 Months</option>
+                  <option value={6}>Last 6 Months</option>
+                  <option value={12}>Last 12 Months</option>
+                </select>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#ff0055]"></div>
-                <span className="text-[10px] text-[#808080] uppercase">Expense</span>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#00ff9d]"></div>
+                  <span className="text-[10px] text-[#808080] uppercase">Income</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#ff0055]"></div>
+                  <span className="text-[10px] text-[#808080] uppercase">Expense</span>
+                </div>
               </div>
             </div>
           </div>
@@ -263,13 +296,28 @@ export function Dashboard() {
         </div>
 
         <div className="glass-panel p-6 rounded-xl neon-border">
-          <h2 className="text-lg font-semibold mb-4 text-white">Cashflow Distribution</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-white">Cashflow Distribution</h2>
+            <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-2 py-1">
+              <Filter className="w-3 h-3 text-[#808080]" />
+              <select 
+                value={pieChartPeriod}
+                onChange={(e) => setPieChartPeriod(Number(e.target.value))}
+                className="bg-transparent text-[#808080] focus:outline-none text-xs font-mono"
+              >
+                <option value={1}>This Month</option>
+                <option value={3}>Last 3 Months</option>
+                <option value={6}>Last 6 Months</option>
+                <option value={12}>Last 12 Months</option>
+              </select>
+            </div>
+          </div>
           <div className="h-[250px] w-full">
-            {income > 0 ? (
+            {pieChartData.income > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={expenseData}
+                    data={pieChartData.expenseData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -278,7 +326,7 @@ export function Dashboard() {
                     dataKey="value"
                     stroke="none"
                   >
-                    {expenseData.map((entry, index) => (
+                    {pieChartData.expenseData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -295,7 +343,7 @@ export function Dashboard() {
             )}
           </div>
           <div className="flex flex-col gap-2 mt-4">
-            {expenseData.map((item, index) => (
+            {pieChartData.expenseData.map((item, index) => (
               <div key={item.name} className="flex justify-between items-center">
                 <LegendItem color={COLORS[index]} label={item.name} />
                 <span className="text-xs font-mono text-white">₹{item.value.toLocaleString()}</span>
