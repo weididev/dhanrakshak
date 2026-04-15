@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance, Salary } from '../context/FinanceContext';
-import { Plus, Trash2, Calendar, IndianRupee, CheckCircle2, Clock, Landmark } from 'lucide-react';
+import { Plus, Trash2, Calendar, IndianRupee, CheckCircle2, Clock, Landmark, ArrowUpDown, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Salaries() {
   const { salaries = [], assets = [], addSalary, deleteSalary } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
 
   const [formData, setFormData] = useState({
     amount: '',
@@ -40,6 +42,22 @@ export function Salaries() {
 
   const totalReceived = salaries.reduce((acc, s) => acc + s.amount, 0);
 
+  const filteredAndSortedSalaries = useMemo(() => {
+    let result = salaries.filter(s => 
+      s.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    result.sort((a, b) => {
+      if (sortBy === 'date_desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (sortBy === 'date_asc') return new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'amount_asc') return a.amount - b.amount;
+      return 0;
+    });
+
+    return result;
+  }, [salaries, searchTerm, sortBy]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-8">
@@ -65,6 +83,32 @@ export function Salaries() {
             </div>
             <CheckCircle2 className="w-12 h-12 text-[#00ff9d] opacity-20" />
           </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
+          <input 
+            type="text" 
+            placeholder="Search income..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-[#00ff9d] transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <ArrowUpDown className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="date_desc">Latest First</option>
+            <option value="date_asc">Oldest First</option>
+            <option value="amount_desc">Amount: High to Low</option>
+            <option value="amount_asc">Amount: Low to High</option>
+          </select>
         </div>
       </div>
 
@@ -152,9 +196,6 @@ export function Salaries() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-      </AnimatePresence>
-
       <div className="glass-panel rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -167,7 +208,7 @@ export function Salaries() {
               </tr>
             </thead>
             <tbody>
-              {salaries.length > 0 ? salaries.map((s) => (
+              {filteredAndSortedSalaries.length > 0 ? filteredAndSortedSalaries.map((s) => (
                 <tr key={s.id} className="border-b border-[#1f1f1f]/50 hover:bg-[#141414] transition-colors">
                   <td className="p-4 text-sm text-[#808080] font-mono">
                     {new Date(s.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -192,7 +233,7 @@ export function Salaries() {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-[#808080] font-mono text-sm">
+                  <td colSpan={4} className="p-8 text-center text-[#808080] font-mono text-sm">
                     NO_INCOME_RECORDS_FOUND
                   </td>
                 </tr>
@@ -204,3 +245,4 @@ export function Salaries() {
     </div>
   );
 }
+
