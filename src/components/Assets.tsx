@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance, AssetType } from '../context/FinanceContext';
-import { Plus, Trash2, ShieldAlert, Landmark, TrendingUp, X } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, Landmark, TrendingUp, X, Search, ArrowUpDown, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Assets() {
@@ -8,6 +8,10 @@ export function Assets() {
   const [isAdding, setIsAdding] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'amount_desc' | 'amount_asc' | 'name_asc' | 'name_desc'>('amount_desc');
+  const [filterType, setFilterType] = useState<'all' | AssetType>('all');
 
   const [formData, setFormData] = useState({
     type: 'emergency_fund' as AssetType,
@@ -73,6 +77,25 @@ export function Assets() {
     });
     setIsAdding(false);
   };
+
+  const filteredAndSortedAssets = useMemo(() => {
+    let result = assets.filter(a => {
+      const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            (a.companyName && a.companyName.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesType = filterType === 'all' || a.type === filterType;
+      return matchesSearch && matchesType;
+    });
+
+    result.sort((a, b) => {
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'amount_asc') return a.amount - b.amount;
+      if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+      if (sortBy === 'name_desc') return b.name.localeCompare(a.name);
+      return 0;
+    });
+
+    return result;
+  }, [assets, searchTerm, sortBy, filterType]);
 
   const emergencyFundTotal = assets.filter(a => a.type === 'emergency_fund').reduce((acc, a) => acc + a.amount, 0);
   const npsTotal = assets.filter(a => a.type === 'nps').reduce((acc, a) => acc + a.amount, 0);
@@ -345,7 +368,6 @@ export function Assets() {
                     </div>
                   </>
                 )}
-
                 <div className="md:col-span-2 flex gap-3 mt-6">
                   <button 
                     type="button"
@@ -367,6 +389,53 @@ export function Assets() {
         )}
       </AnimatePresence>
 
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
+          <input 
+            type="text" 
+            placeholder="Search assets..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-[#00ff9d] transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <Filter className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="emergency_fund">Emergency Fund</option>
+            <option value="sip">Mutual Fund SIP</option>
+            <option value="investment">Stock / Equity</option>
+            <option value="nps">NPS</option>
+            <option value="epf">EPF</option>
+            <option value="ppf">PPF</option>
+            <option value="fd">Fixed Deposit</option>
+            <option value="gold">Gold / SGB</option>
+            <option value="bond">Bond</option>
+            <option value="real_estate">Real Estate</option>
+            <option value="cash">Cash / Bank</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <ArrowUpDown className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="amount_desc">Amount: High to Low</option>
+            <option value="amount_asc">Amount: Low to High</option>
+            <option value="name_asc">Name: A to Z</option>
+            <option value="name_desc">Name: Z to A</option>
+          </select>
+        </div>
+      </div>
+
       <div className="glass-panel rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -380,7 +449,7 @@ export function Assets() {
               </tr>
             </thead>
             <tbody>
-              {assets.length > 0 ? assets.map((a) => (
+              {filteredAndSortedAssets.length > 0 ? filteredAndSortedAssets.map((a) => (
                 <tr key={a.id} className="border-b border-[#1f1f1f]/50 hover:bg-[#141414] transition-colors">
                   <td className="p-4 text-sm text-white font-medium">
                     {a.name}
@@ -481,4 +550,5 @@ function AssetSummaryCard({ title, amount, icon, color }: { title: string, amoun
       </div>
     </div>
   );
-}
+                    }
+                
