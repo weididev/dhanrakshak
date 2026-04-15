@@ -470,5 +470,4 @@ export function useFinance() {
     throw new Error('useFinance must be used within a FinanceProvider');
   }
   return context;
-             }
-          
+}
