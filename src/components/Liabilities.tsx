@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance, LiabilityType } from '../context/FinanceContext';
-import { Plus, Trash2, AlertCircle, CreditCard, Landmark, X } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, CreditCard, Landmark, X, Search, ArrowUpDown, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Liabilities() {
@@ -8,6 +8,10 @@ export function Liabilities() {
   const [isAdding, setIsAdding] = useState(false);
   const [payingLiability, setPayingLiability] = useState<any | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'amount_desc' | 'amount_asc' | 'emi_desc' | 'emi_asc'>('amount_desc');
+  const [filterType, setFilterType] = useState<'all' | LiabilityType>('all');
 
   const [formData, setFormData] = useState({
     type: 'loan' as LiabilityType,
@@ -90,6 +94,24 @@ export function Liabilities() {
     });
     setIsAdding(false);
   };
+
+  const filteredAndSortedLiabilities = useMemo(() => {
+    let result = liabilities.filter(l => {
+      const matchesSearch = l.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = filterType === 'all' || l.type === filterType;
+      return matchesSearch && matchesType;
+    });
+
+    result.sort((a, b) => {
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'amount_asc') return a.amount - b.amount;
+      if (sortBy === 'emi_desc') return (b.emiAmount || 0) - (a.emiAmount || 0);
+      if (sortBy === 'emi_asc') return (a.emiAmount || 0) - (b.emiAmount || 0);
+      return 0;
+    });
+
+    return result;
+  }, [liabilities, searchTerm, sortBy, filterType]);
 
   const totalDebt = liabilities.reduce((acc, l) => acc + l.amount, 0);
   const totalEMI = liabilities.reduce((acc, l) => acc + (l.emiAmount || 0), 0);
@@ -478,6 +500,50 @@ export function Liabilities() {
         )}
       </AnimatePresence>
 
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
+          <input 
+            type="text" 
+            placeholder="Search debts..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <Filter className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="home_loan">Home Loan</option>
+            <option value="car_loan">Car Loan</option>
+            <option value="bike_loan">Bike Loan</option>
+            <option value="education_loan">Education Loan</option>
+            <option value="loan">Personal Loan</option>
+            <option value="credit_card">Credit Card (EMI)</option>
+            <option value="cc_outstanding">Credit Card (Bill)</option>
+            <option value="other_debt">Other Debt</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <ArrowUpDown className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="amount_desc">Balance: High to Low</option>
+            <option value="amount_asc">Balance: Low to High</option>
+            <option value="emi_desc">EMI: High to Low</option>
+            <option value="emi_asc">EMI: Low to High</option>
+          </select>
+        </div>
+      </div>
+
       <div className="glass-panel rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -491,7 +557,7 @@ export function Liabilities() {
               </tr>
             </thead>
             <tbody>
-              {liabilities.length > 0 ? liabilities.map((l) => {
+              {filteredAndSortedLiabilities.length > 0 ? filteredAndSortedLiabilities.map((l) => {
                 const freedomDate = l.remainingTenureMonths && l.startDate 
                   ? new Date(new Date(l.startDate).setMonth(new Date(l.startDate).getMonth() + l.remainingTenureMonths))
                   : null;
