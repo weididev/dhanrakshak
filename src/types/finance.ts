@@ -24,6 +24,19 @@ export interface Salary {
   linkedAssetId?: string;
 }
 
+export interface OfferComponent {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+export interface SalaryOffer {
+  id: string;
+  companyName: string;
+  effectiveDate: string;
+  components: OfferComponent[];
+}
+
 export interface Asset {
   id: string;
   type: AssetType;
@@ -87,6 +100,7 @@ export interface FinanceState {
   insurances: Insurance[];
   budgets: Budget[];
   salaries: Salary[];
+  salaryOffers: SalaryOffer[];
   userProfile: UserProfile;
   nameHistory: string[];
 }
