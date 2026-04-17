@@ -9,7 +9,7 @@ interface LayoutProps {
   setActiveTab: (tab: string) => void;
 }
 
-export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
+export const Layout = ({ children, activeTab, setActiveTab }: LayoutProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { userProfile } = useFinance();
 
