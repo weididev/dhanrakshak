@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useFinance, InsuranceType } from '../context/FinanceContext';
 import { Plus, Trash2, HeartPulse, ShieldCheck } from 'lucide-react';
 
-export function Insurance() {
+export const Insurance = () => {
   const { insurances = [], addInsurance, deleteInsurance } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
 
