@@ -1,156 +1,692 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, Wallet, Shield, TrendingUp, BookOpen, Menu, X, Landmark, UserCircle, MoreHorizontal, Clock } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { useFinance } from '../context/FinanceContext';
+import React, { useState, useMemo } from 'react';
+import { useFinance, LiabilityType } from '../context/FinanceContext';
+import { Plus, Trash2, AlertCircle, CreditCard, Landmark, X, Search, ArrowUpDown, Filter } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
-interface LayoutProps {
-  children: React.ReactNode;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-}
+export const Liabilities = () => {
+  const { liabilities = [], assets = [], addLiability, updateLiability, deleteLiability, payLiability, nameHistory = [], addToHistory } = useFinance();
+  const [isAdding, setIsAdding] = useState(false);
+  const [payingLiability, setPayingLiability] = useState<any | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { userProfile } = useFinance();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'amount_desc' | 'amount_asc' | 'emi_desc' | 'emi_asc'>('amount_desc');
+  const [filterType, setFilterType] = useState<'all' | LiabilityType>('all');
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'salaries', label: 'Income', icon: Wallet },
-    { id: 'transactions', label: 'Cashflow', icon: Clock },
-    { id: 'assets', label: 'Assets', icon: TrendingUp },
-    { id: 'liabilities', label: 'Debt', icon: Landmark },
-    { id: 'insurance', label: 'Protection', icon: Shield },
-    { id: 'strategies', label: 'Wisdom', icon: BookOpen },
-    { id: 'profile', label: 'Profile', icon: UserCircle },
-  ];
+  const [formData, setFormData] = useState({
+    type: 'loan' as LiabilityType,
+    amount: '',
+    totalAmount: '',
+    interestRate: '',
+    name: '',
+    emiAmount: '',
+    paymentDay: '',
+    totalTenureMonths: '',
+    remainingTenureMonths: '',
+    startDate: new Date().toISOString().split('T')[0],
+    lastFourDigits: ''
+  });
+
+  const [payFormData, setPayFormData] = useState({
+    amount: '',
+    principal: '',
+    interest: '',
+    date: new Date().toISOString().split('T')[0],
+    assetId: ''
+  });
+
+  const handlePaySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingLiability || !payFormData.amount) return;
+
+    payLiability(
+      payingLiability.id,
+      Number(payFormData.amount),
+      Number(payFormData.principal || payFormData.amount),
+      Number(payFormData.interest || 0),
+      payFormData.date,
+      payFormData.assetId || undefined
+    );
+
+    setPayingLiability(null);
+    setPayFormData({
+      amount: '',
+      principal: '',
+      interest: '',
+      date: new Date().toISOString().split('T')[0],
+      assetId: ''
+    });
+  };
+
+  const bankAssets = assets.filter(a => ['cash', 'investment', 'emergency_fund'].includes(a.type));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.amount || !formData.name || !formData.interestRate) return;
+    
+    addToHistory(formData.name);
+    addLiability({
+      type: formData.type,
+      amount: Number(formData.amount),
+      totalAmount: formData.totalAmount ? Number(formData.totalAmount) : Number(formData.amount),
+      interestRate: Number(formData.interestRate),
+      name: formData.name,
+      ...(formData.emiAmount ? { emiAmount: Number(formData.emiAmount) } : {}),
+      ...(formData.paymentDay ? { paymentDay: Number(formData.paymentDay) } : {}),
+      ...(formData.totalTenureMonths ? { totalTenureMonths: Number(formData.totalTenureMonths) } : {}),
+      ...(formData.remainingTenureMonths ? { remainingTenureMonths: Number(formData.remainingTenureMonths) } : {}),
+      startDate: formData.startDate,
+      ...(formData.lastFourDigits ? { lastFourDigits: formData.lastFourDigits } : {})
+    });
+    
+    setFormData({
+      type: 'loan',
+      amount: '',
+      totalAmount: '',
+      interestRate: '',
+      name: '',
+      emiAmount: '',
+      paymentDay: '',
+      totalTenureMonths: '',
+      remainingTenureMonths: '',
+      startDate: new Date().toISOString().split('T')[0],
+      lastFourDigits: ''
+    });
+    setIsAdding(false);
+  };
+
+  const filteredAndSortedLiabilities = useMemo(() => {
+    let result = liabilities.filter(l => {
+      const matchesSearch = l.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = filterType === 'all' || l.type === filterType;
+      return matchesSearch && matchesType;
+    });
+
+    result.sort((a, b) => {
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'amount_asc') return a.amount - b.amount;
+      if (sortBy === 'emi_desc') return (b.emiAmount || 0) - (a.emiAmount || 0);
+      if (sortBy === 'emi_asc') return (a.emiAmount || 0) - (b.emiAmount || 0);
+      return 0;
+    });
+
+    return result;
+  }, [liabilities, searchTerm, sortBy, filterType]);
+
+  const totalDebt = liabilities.reduce((acc, l) => acc + l.amount, 0);
+  const totalEMI = liabilities.reduce((acc, l) => acc + (l.emiAmount || 0), 0);
+
+  const liabilityNames = Array.from(new Set([...nameHistory, ...liabilities.map(l => l.name).filter(Boolean)]));
+
+  const filteredNames = liabilityNames.filter(name => 
+    name.toLowerCase().includes(formData.name.toLowerCase()) && name !== formData.name
+  );
+
+  const isLoan = ['loan', 'home_loan', 'car_loan', 'bike_loan', 'education_loan', 'credit_card'].includes(formData.type);
+  const isCCOutstanding = formData.type === 'cc_outstanding';
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#e0e0e0] flex flex-col md:flex-row overflow-hidden">
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] border-b border-[#1f1f1f] bg-[#0a0a0a] z-20 sticky top-0">
-        <div className="flex items-center gap-2">
-          <Shield className="w-6 h-6 text-[#00f0ff]" />
-          <span className="font-sans font-bold text-lg tracking-wider text-white">DHANRAKSHAK</span>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Liabilities & Debt</h1>
+          <p className="text-[#808080] font-mono text-sm mt-1">MODULE: DEBT_ELIMINATION</p>
+        </div>
+        <button 
+          onClick={() => setIsAdding(true)}
+          className="flex items-center gap-2 bg-[#ff0055]/10 text-[#ff0055] border border-[#ff0055]/30 px-4 py-2 rounded-lg hover:bg-[#ff0055]/20 transition-all shadow-[0_0_15px_rgba(255,0,85,0.1)]"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="font-mono text-sm uppercase tracking-wider">ADD DEBT</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="glass-panel p-6 rounded-xl border-l-4 border-l-[#ff0055]">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-[#808080] text-sm font-medium uppercase tracking-widest">Total Outstanding Debt</h3>
+              <div className="text-4xl font-mono text-white mt-1">₹{totalDebt.toLocaleString('en-IN')}</div>
+            </div>
+            <AlertCircle className="w-12 h-12 text-[#ff0055] opacity-20" />
+          </div>
+        </div>
+        <div className="glass-panel p-6 rounded-xl border-l-4 border-l-[#ffb800]">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-[#808080] text-sm font-medium uppercase tracking-widest">Total Monthly EMI</h3>
+              <div className="text-4xl font-mono text-white mt-1">₹{totalEMI.toLocaleString('en-IN')}</div>
+            </div>
+            <Landmark className="w-12 h-12 text-[#ffb800] opacity-20" />
+          </div>
         </div>
       </div>
 
-      {/* Sidebar (Desktop) */}
-      <aside className={cn(
-        "fixed md:static inset-y-0 left-0 z-30 w-64 bg-[#0a0a0a] border-r border-[#1f1f1f] transform transition-transform duration-300 ease-in-out flex flex-col",
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
-        <div className="hidden md:flex items-center gap-3 p-6 border-b border-[#1f1f1f]">
-          <Shield className="w-8 h-8 text-[#00f0ff]" />
-          <span className="font-sans font-bold text-xl tracking-widest text-white">DHANRAKSHAK</span>
-        </div>
-
-        <div className="p-4 border-b border-[#1f1f1f]">
-          <div className="text-xs text-[#808080] uppercase tracking-wider mb-1">Commander</div>
-          <div className="text-white font-bold truncate">{userProfile?.name || 'User'}</div>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium text-sm tracking-wide",
-                  isActive 
-                    ? "bg-[#141414] text-[#00f0ff] border border-[#00f0ff]/30 shadow-[0_0_15px_rgba(0,240,255,0.1)]" 
-                    : "text-[#808080] hover:text-[#e0e0e0] hover:bg-[#141414]"
-                )}
-              >
-                <Icon className={cn("w-5 h-5", isActive ? "text-[#00f0ff]" : "text-[#808080]")} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-        
-        <div className="p-4 border-t border-[#1f1f1f] flex flex-col gap-2">
-          <div className="text-xs text-[#808080] font-mono text-center">
-            SYSTEM OFFLINE MODE
-            <div className="w-2 h-2 bg-[#00ff9d] rounded-full inline-block ml-2 shadow-[0_0_8px_#00ff9d]"></div>
-          </div>
-          <div className="text-[10px] text-[#404040] font-mono text-center uppercase tracking-widest">
-            App Developer: weididev
-          </div>
-        </div>
-      </aside>
-
-      {/* Mobile Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        ></div>
-      )}
-
-      {/* Main Content */}
-      <main className="flex-1 h-[calc(100vh-65px)] md:h-screen overflow-y-auto p-4 md:p-8 relative pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
-        {/* Decorative Background Elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-5%] w-[40%] h-[40%] rounded-full bg-[#00f0ff]/5 blur-[120px]"></div>
-          <div className="absolute bottom-[-10%] left-[-5%] w-[40%] h-[40%] rounded-full bg-[#00ff9d]/5 blur-[120px]"></div>
-        </div>
-        
-        <div className="relative z-10 max-w-7xl mx-auto">
-          {children}
-          
-          <footer className="mt-12 pb-20 md:pb-8 border-t border-[#1f1f1f] pt-8">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="text-left">
-                <div className="text-xl font-bold text-white tracking-tighter">DHAN<span className="text-[#00f0ff]">RAKSHAK</span></div>
-                <p className="text-[#808080] text-xs font-mono mt-1 uppercase">Advanced Financial Defense System v1.0</p>
-              </div>
-              <div className="text-center md:text-right">
-                <p className="text-[#808080] text-xs font-mono uppercase tracking-widest">App Developer</p>
-                <p className="text-[#00ff9d] font-bold text-sm tracking-widest">weididev</p>
-              </div>
-            </div>
-          </footer>
-        </div>
-      </main>
-
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#0a0a0a]/80 backdrop-blur-lg border-t border-[#1f1f1f] flex justify-around p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] z-20">
-        {[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'salaries', label: 'Income', icon: Wallet },
-          { id: 'assets', label: 'Assets', icon: TrendingUp },
-          { id: 'liabilities', label: 'Debts', icon: Landmark },
-          { id: 'menu', label: 'More', icon: MoreHorizontal },
-        ].map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                if (item.id === 'menu') {
-                  setIsMobileMenuOpen(true);
-                } else {
-                  setActiveTab(item.id);
-                }
-              }}
-              className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-lg transition-all",
-                isActive ? "text-[#00f0ff]" : "text-[#808080]"
-              )}
+      <AnimatePresence>
+        {isAdding && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass-panel w-full max-w-2xl p-6 rounded-2xl border border-[#ff0055]/30 shadow-[0_0_50px_rgba(255,0,85,0.1)] max-h-[90vh] overflow-y-auto"
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] uppercase font-mono">{item.label}</span>
-            </button>
-          );
-        })}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Landmark className="w-5 h-5 text-[#ff0055]" /> Add New Debt
+                </h2>
+                <button onClick={() => setIsAdding(false)} className="text-[#808080] hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Debt Type</label>
+                  <select 
+                    value={formData.type}
+                    onChange={e => setFormData({...formData, type: e.target.value as LiabilityType})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors"
+                  >
+                    <option value="home_loan">Home Loan</option>
+                    <option value="car_loan">Car Loan</option>
+                    <option value="bike_loan">Bike/Two-Wheeler Loan</option>
+                    <option value="education_loan">Education Loan</option>
+                    <option value="loan">Personal Loan</option>
+                    <option value="credit_card">Credit Card (EMI/Loan)</option>
+                    <option value="cc_outstanding">Credit Card (Outstanding Bill)</option>
+                    <option value="other_debt">Other Debt</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2 relative">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Name/Provider</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.name}
+                    onChange={e => {
+                      setFormData({...formData, name: e.target.value});
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors"
+                    placeholder="e.g. HDFC Home Loan"
+                  />
+                  {showSuggestions && filteredNames.length > 0 && (
+                    <div className="absolute z-50 w-full bg-[#141414] border border-[#1f1f1f] rounded-lg mt-1 max-h-40 overflow-y-auto shadow-xl">
+                      {filteredNames.map(name => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setFormData({...formData, name});
+                            setShowSuggestions(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-[#e0e0e0] hover:bg-[#1f1f1f] hover:text-[#ff0055] transition-colors"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Total Loan Amount (₹)</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={formData.totalAmount}
+                    onChange={e => setFormData({...formData, totalAmount: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                    placeholder="Original amount"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Outstanding Amount (₹)</label>
+                  <input 
+                    type="number" 
+                    required
+                    min="0"
+                    value={formData.amount}
+                    onChange={e => setFormData({...formData, amount: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                    placeholder="0.00"
+                  />
+                  {isCCOutstanding && (
+                    <p className="text-[10px] text-[#808080] font-mono mt-1 italic">
+                      * Use this for current month's credit card bill or total outstanding that isn't converted to EMI.
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Interest Rate (%)</label>
+                  <input 
+                    type="number" 
+                    required
+                    min="0"
+                    step="0.1"
+                    value={formData.interestRate}
+                    onChange={e => setFormData({...formData, interestRate: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                    placeholder="0.0"
+                  />
+                </div>
+
+                {isLoan && (
+                  <>
+                    <div className="space-y-2 animate-in fade-in">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Monthly EMI (₹)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={formData.emiAmount}
+                        onChange={e => setFormData({...formData, emiAmount: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="space-y-2 animate-in fade-in">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Payment Day (1-31)</label>
+                      <input 
+                        type="number" 
+                        min="1"
+                        max="31"
+                        value={formData.paymentDay}
+                        onChange={e => setFormData({...formData, paymentDay: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                        placeholder="e.g. 5"
+                      />
+                    </div>
+                    <div className="space-y-2 animate-in fade-in">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Total Tenure (Months)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={formData.totalTenureMonths}
+                        onChange={e => setFormData({...formData, totalTenureMonths: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                        placeholder="e.g. 120"
+                      />
+                    </div>
+                    <div className="space-y-2 animate-in fade-in">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">Remaining Tenure (Months)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={formData.remainingTenureMonths}
+                        onChange={e => setFormData({...formData, remainingTenureMonths: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                        placeholder="e.g. 60"
+                      />
+                    </div>
+                    <div className="space-y-2 animate-in fade-in">
+                      <label className="text-xs text-[#808080] uppercase tracking-wider">EMI Start Date</label>
+                      <input 
+                        type="date" 
+                        value={formData.startDate}
+                        onChange={e => setFormData({...formData, startDate: e.target.value})}
+                        className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {isCCOutstanding && (
+                  <div className="space-y-2 animate-in fade-in">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Bill Due Date (1-31)</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="31"
+                      value={formData.paymentDay}
+                      onChange={e => setFormData({...formData, paymentDay: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                      placeholder="e.g. 15"
+                    />
+                  </div>
+                )}
+
+                {formData.type === 'credit_card' && (
+                  <div className="space-y-2 animate-in fade-in">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Last 4 Digits</label>
+                    <input 
+                      type="text" 
+                      maxLength={4}
+                      value={formData.lastFourDigits}
+                      onChange={e => setFormData({...formData, lastFourDigits: e.target.value.replace(/\D/g, '')})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                      placeholder="e.g. 1234"
+                    />
+                  </div>
+                )}
+
+                {formData.type === 'credit_card' && (
+                  <div className="space-y-2 animate-in fade-in">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Bill Payment Day (1-31)</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="31"
+                      value={formData.paymentDay}
+                      onChange={e => setFormData({...formData, paymentDay: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors font-mono"
+                      placeholder="e.g. 15"
+                    />
+                  </div>
+                )}
+
+                <div className="md:col-span-2 flex gap-3 mt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAdding(false)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-[#1f1f1f] text-[#808080] hover:bg-[#1f1f1f] transition-colors font-mono text-sm"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-[#ff0055] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#ff0055]/80 transition-colors shadow-[0_0_15px_rgba(255,0,85,0.3)]"
+                  >
+                    SAVE DEBT
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {payingLiability && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-panel w-full max-w-md p-6 rounded-2xl border border-[#ffb800]/30 shadow-[0_0_50px_rgba(255,184,0,0.1)]"
+            >
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-[#ffb800]" /> Pay EMI / Debt
+              </h2>
+              <p className="text-[#808080] mb-6 font-mono text-sm uppercase">Liability: {payingLiability.name}</p>
+              
+              <form onSubmit={handlePaySubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Total Amount Paid (₹)</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={payFormData.amount}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setPayFormData({...payFormData, amount: val, principal: val, interest: '0'});
+                    }}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Principal (₹)</label>
+                    <input 
+                      type="number" 
+                      value={payFormData.principal}
+                      onChange={e => setPayFormData({...payFormData, principal: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-[#808080] uppercase tracking-wider">Interest (₹)</label>
+                    <input 
+                      type="number" 
+                      value={payFormData.interest}
+                      onChange={e => setPayFormData({...payFormData, interest: e.target.value})}
+                      className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Date</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={payFormData.date}
+                    onChange={e => setPayFormData({...payFormData, date: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors font-mono"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-[#808080] uppercase tracking-wider">Pay From</label>
+                  <select 
+                    value={payFormData.assetId}
+                    onChange={e => setPayFormData({...payFormData, assetId: e.target.value})}
+                    className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ffb800] transition-colors"
+                  >
+                    <option value="">No linked account (Transaction only)</option>
+                    {bankAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name} (₹{asset.amount.toLocaleString()})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setPayingLiability(null)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-[#1f1f1f] text-[#808080] hover:bg-[#1f1f1f] transition-colors font-mono text-sm"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-[#ffb800] text-black font-bold px-4 py-2 rounded-lg hover:bg-[#ffb800]/80 transition-colors shadow-[0_0_15px_rgba(255,184,0,0.3)]"
+                  >
+                    CONFIRM PAYMENT
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
+          <input 
+            type="text" 
+            placeholder="Search debts..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#141414] border border-[#1f1f1f] rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-[#ff0055] transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <Filter className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="home_loan">Home Loan</option>
+            <option value="car_loan">Car Loan</option>
+            <option value="bike_loan">Bike Loan</option>
+            <option value="education_loan">Education Loan</option>
+            <option value="loan">Personal Loan</option>
+            <option value="credit_card">Credit Card (EMI)</option>
+            <option value="cc_outstanding">Credit Card (Bill)</option>
+            <option value="other_debt">Other Debt</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-[#141414] border border-[#1f1f1f] rounded-lg px-3 py-2">
+          <ArrowUpDown className="w-4 h-4 text-[#808080]" />
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent text-white focus:outline-none text-sm"
+          >
+            <option value="amount_desc">Balance: High to Low</option>
+            <option value="amount_asc">Balance: Low to High</option>
+            <option value="emi_desc">EMI: High to Low</option>
+            <option value="emi_asc">EMI: Low to High</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-[#0a0a0a]">
+              <tr className="border-b border-[#1f1f1f] text-[#808080] text-xs font-mono uppercase tracking-wider">
+                <th className="p-4 font-normal">Debt Name</th>
+                <th className="p-4 font-normal">Type</th>
+                <th className="p-4 font-normal text-right">Payment Day</th>
+                <th className="p-4 font-normal text-right">EMI / Balance</th>
+                <th className="p-4 font-normal text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAndSortedLiabilities.length > 0 ? filteredAndSortedLiabilities.map((l) => {
+                const freedomDate = l.remainingTenureMonths && l.startDate 
+                  ? new Date(new Date(l.startDate).setMonth(new Date(l.startDate).getMonth() + l.remainingTenureMonths))
+                  : null;
+                
+                return (
+                  <tr key={l.id} className="border-b border-[#1f1f1f]/50 hover:bg-[#141414] transition-colors">
+                    <td className="p-4 text-sm text-white font-medium">
+                      <div className="flex items-center gap-2">
+                        {l.name}
+                        {l.lastFourDigits && (
+                          <span className="text-[10px] bg-[#1f1f1f] px-1.5 py-0.5 rounded text-[#808080] font-mono">
+                            **** {l.lastFourDigits}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-[#808080] font-mono mt-1">{l.interestRate}% INTEREST</div>
+                      {l.totalAmount && (
+                        <div className="text-[10px] text-[#808080] font-mono mt-0.5">TOTAL: ₹{l.totalAmount.toLocaleString('en-IN')}</div>
+                      )}
+                      {freedomDate && (
+                        <div className="text-[10px] text-[#00ff9d] font-mono mt-1 uppercase">
+                          Freedom: {freedomDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-4 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-mono ${
+                        l.type === 'credit_card' || l.type === 'cc_outstanding' ? 'bg-[#ff0055]/10 text-[#ff0055] border border-[#ff0055]/20' : 
+                        'bg-[#ffb800]/10 text-[#ffb800] border border-[#ffb800]/20'
+                      }`}>
+                        {l.type.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm font-mono text-right">
+                      {l.paymentDay ? (
+                        <input 
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={l.paymentDay}
+                          onChange={(e) => updateLiability(l.id, { paymentDay: Number(e.target.value) })}
+                          className="w-12 bg-transparent border-b border-[#1f1f1f] text-right text-white focus:outline-none focus:border-[#ff0055]"
+                        />
+                      ) : (
+                        <span className="text-[#404040]">-</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-sm font-mono text-right text-white">
+                      {l.emiAmount !== undefined && (
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-[#ffb800]">₹</span>
+                          <input 
+                            type="number"
+                            value={l.emiAmount}
+                            onChange={(e) => updateLiability(l.id, { emiAmount: Number(e.target.value) })}
+                            className="w-20 bg-transparent border-b border-[#1f1f1f] text-right text-[#ffb800] focus:outline-none focus:border-[#ffb800]"
+                          />
+                          <span className="text-[10px] text-[#808080]">/mo</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-end gap-1 mt-1">
+                        <span className="text-[10px] text-[#808080]">BAL: ₹</span>
+                        <input 
+                          type="number"
+                          value={l.amount}
+                          onChange={(e) => updateLiability(l.id, { amount: Number(e.target.value) })}
+                          className="w-24 bg-transparent border-b border-[#1f1f1f] text-right text-[10px] text-[#808080] focus:outline-none focus:border-[#ff0055]"
+                        />
+                      </div>
+                      {l.remainingTenureMonths && (
+                        <div className="text-[10px] text-[#404040] uppercase mt-1">
+                          {l.remainingTenureMonths} {l.totalTenureMonths ? `/ ${l.totalTenureMonths}` : ''} Months Left
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setPayingLiability(l);
+                            setPayFormData({
+                              ...payFormData,
+                              amount: l.emiAmount?.toString() || '',
+                              principal: '',
+                              interest: '',
+                              assetId: ''
+                            });
+                          }}
+                          className="text-[#ffb800] hover:bg-[#ffb800]/10 p-1.5 rounded-lg transition-colors border border-[#ffb800]/20"
+                          title="Pay EMI"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => deleteLiability(l.id)}
+                          className="text-[#808080] hover:text-[#ff0055] transition-colors p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-[#808080] font-mono text-sm">
+                    NO_DEBTS_RECORDED
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
+
+function LiabilitySummaryCard({ title, amount, icon, color }: { title: string, amount: number, icon: React.ReactNode, color: string }) {
+  return (
+    <div className="glass-panel p-5 rounded-xl border-t-2 border-t-transparent hover:border-t-[#ff0055] transition-all">
+      <div className="flex justify-between items-start mb-2">
+        <h3 className="text-[#808080] text-sm font-medium">{title}</h3>
+        <div className="p-2 bg-[#141414] rounded-lg">{icon}</div>
+      </div>
+      <div className={`text-3xl font-mono ${color}`}>
+        ₹{amount.toLocaleString('en-IN')}
+      </div>
+    </div>
+  );
+}
+
