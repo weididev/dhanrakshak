@@ -13,6 +13,8 @@ import {
   Insurance, 
   InsuranceType, 
   Salary, 
+  SalaryOffer,
+  OfferComponent,
   Budget, 
   UserProfile, 
   FinanceState 
@@ -48,6 +50,9 @@ interface FinanceContextType extends FinanceState {
   addSalary: (s: Omit<Salary, 'id'>) => void;
   updateSalary: (id: string, s: Partial<Salary>) => void;
   deleteSalary: (id: string) => void;
+  addSalaryOffer: (so: Omit<SalaryOffer, 'id'>) => void;
+  updateSalaryOffer: (id: string, so: Partial<SalaryOffer>) => void;
+  deleteSalaryOffer: (id: string) => void;
   payLiability: (id: string, amount: number, principal: number, interest: number, date: string, assetId?: string) => void;
   setBudget: (b: Budget) => void;
   deleteBudget: (category: string) => void;
@@ -66,6 +71,7 @@ const defaultState: FinanceState = {
   insurances: [],
   budgets: [],
   salaries: [],
+  salaryOffers: [],
   userProfile: {
     name: '',
     dependents: 0,
@@ -206,6 +212,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return {
         ...prev,
         salaries: [newSalary, ...prev.salaries],
+        salaryOffers: prev.salaryOffers || [],
         assets: updatedAssets,
         transactions: [newTransaction, ...prev.transactions]
       };
@@ -223,6 +230,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
       ...prev,
       salaries: prev.salaries.filter(s => s.id !== id)
+    }));
+  };
+
+  const addSalaryOffer = (so: Omit<SalaryOffer, 'id'>) => {
+    setState(prev => ({
+      ...prev,
+      salaryOffers: [{ ...so, id: crypto.randomUUID() }, ...prev.salaryOffers]
+    }));
+  };
+
+  const updateSalaryOffer = (id: string, so: Partial<SalaryOffer>) => {
+    setState(prev => ({
+      ...prev,
+      salaryOffers: prev.salaryOffers.map(item => item.id === id ? { ...item, ...so } : item)
+    }));
+  };
+
+  const deleteSalaryOffer = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      salaryOffers: prev.salaryOffers.filter(so => so.id !== id)
     }));
   };
   
@@ -449,6 +477,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addSalary,
       updateSalary,
       deleteSalary,
+      addSalaryOffer,
+      updateSalaryOffer,
+      deleteSalaryOffer,
       payLiability,
       setBudget,
       deleteBudget,
