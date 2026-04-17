@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import { ArrowUpRight, ArrowDownRight, Wallet, AlertTriangle, TrendingUp, Landmark, CheckCircle2, X, Clock, Shield, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export function Dashboard() {
+export const Dashboard = () => {
   const { transactions = [], assets = [], liabilities = [], insurance = [], salaries = [], addTransaction, updateLiability } = useFinance();
 
   const [payingLiability, setPayingLiability] = useState<string | null>(null);
