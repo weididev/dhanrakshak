@@ -4,7 +4,7 @@ import { Plus, Trash2, TrendingUp, Building2, Calendar, FileText, ArrowUpRight, 
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
-export function SalaryOffers() {
+export const SalaryOffers = () => {
   const { salaryOffers = [], addSalaryOffer, deleteSalaryOffer } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
   
