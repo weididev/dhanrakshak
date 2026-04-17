@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance, TransactionType } from '../context/FinanceContext';
 import { Plus, Trash2, Search, ArrowUpDown, Filter } from 'lucide-react';
 
-export function Transactions() {
+export const Transactions = () => {
   const { transactions = [], addTransaction, deleteTransaction, nameHistory = [], addToHistory } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
