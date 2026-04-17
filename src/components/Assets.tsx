@@ -368,6 +368,7 @@ export function Assets() {
                     </div>
                   </>
                 )}
+
                 <div className="md:col-span-2 flex gap-3 mt-6">
                   <button 
                     type="button"
@@ -550,5 +551,4 @@ function AssetSummaryCard({ title, amount, icon, color }: { title: string, amoun
       </div>
     </div>
   );
-                    }
-                
+}
