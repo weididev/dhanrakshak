@@ -3,7 +3,7 @@ import { useFinance, AssetType } from '../context/FinanceContext';
 import { Plus, Trash2, ShieldAlert, Landmark, TrendingUp, X, Search, ArrowUpDown, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export function Assets() {
+export const Assets = () => {
   const { assets = [], addAsset, updateAsset, deleteAsset, nameHistory = [], addToHistory } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
