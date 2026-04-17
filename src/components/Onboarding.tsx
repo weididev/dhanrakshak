@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Shield, ArrowRight, User, Briefcase, Target } from 'lucide-react';
 
-export function Onboarding() {
+export const Onboarding = () => {
   const { updateProfile } = useFinance();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
