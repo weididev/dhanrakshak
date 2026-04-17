@@ -2,7 +2,7 @@ import React from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Target, AlertCircle, CheckCircle2, BookOpen, Flame, ShieldCheck, TrendingUp, Calculator, Zap, Info } from 'lucide-react';
 
-export function Guidance() {
+export const Guidance = () => {
   const { transactions = [], assets = [], insurances = [], liabilities = [] } = useFinance();
 
   // Calculations based on current month
