@@ -12,9 +12,21 @@ export const SalaryOffers = () => {
   const [companyName, setCompanyName] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
   const [components, setComponents] = useState<Omit<OfferComponent, 'id'>[]>([{ name: 'Basic Salary', amount: 0, type: 'earning' }]);
+  
+  const [focusedComponentIdx, setFocusedComponentIdx] = useState<number | null>(null);
 
   const sortedOffers = useMemo(() => {
     return [...salaryOffers].sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime());
+  }, [salaryOffers]);
+
+  const historicalComponentNames = useMemo(() => {
+    const names = new Set<string>();
+    salaryOffers.forEach(offer => {
+      offer.components.forEach(c => {
+        if (c.name.trim()) names.add(c.name.trim());
+      });
+    });
+    return Array.from(names);
   }, [salaryOffers]);
 
   const openAddForm = () => {
@@ -184,6 +196,27 @@ export const SalaryOffers = () => {
       avgSwitchTimeDays = diffTime / (1000 * 60 * 60 * 24 * (offersWithStats.length - 1));
     }
 
+    // 4. Real Purchasing Power (Inflation adjusted)
+    const INFLATION_RATE = 0.06; // 6% average inflation
+    let realPurchasingPowerCTC = annual;
+    let baselineYear = new Date().getFullYear();
+
+    // 5. CTC Efficiency
+    const ctcEfficiency = (latest.stats.monthlyInHand * 12) / annual * 100;
+    
+    if (offersWithStats.length > 0) {
+      const firstDate = new Date(offersWithStats[0].effectiveDate);
+      baselineYear = firstDate.getFullYear();
+      const lastDate = new Date(latest.effectiveDate);
+      const diffYears = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      if (diffYears > 0) {
+        realPurchasingPowerCTC = annual / Math.pow(1 + INFLATION_RATE, diffYears);
+      }
+    }
+
+    // 6. Predictive Next Move
+    const predictedNextCTC = annual * (1 + (cagr / 100));
+
     return {
       timeValue,
       donutData,
@@ -191,6 +224,12 @@ export const SalaryOffers = () => {
         cagr,
         multiplier,
         avgSwitchTimeDays: Math.round(avgSwitchTimeDays)
+      },
+      efficiency: {
+        ctcEfficiency,
+        realPurchasingPowerCTC,
+        baselineYear,
+        predictedNextCTC
       }
     };
   }, [offersWithStats]);
@@ -334,18 +373,43 @@ export const SalaryOffers = () => {
                     <div className="text-xs font-mono text-[#404040]">Input fixed amounts appropriately</div>
                   </div>
                   
-                  {components.map((c, idx) => (
-                    <div key={idx} className="flex gap-3 items-start animate-in fade-in slide-in-from-left-4 bg-[#141414] p-3 rounded-lg border border-[#1f1f1f]">
-                      <div className="flex-1 space-y-1">
+                  {components.map((c, idx) => {
+                    const matchedSuggestions = focusedComponentIdx === idx && c.name
+                      ? historicalComponentNames.filter(n => n.toLowerCase().includes(c.name.toLowerCase()) && n.toLowerCase() !== c.name.toLowerCase()).slice(0, 5)
+                      : [];
+
+                    return (
+                    <div key={idx} className="flex gap-3 items-start animate-in fade-in slide-in-from-left-4 bg-[#141414] p-3 rounded-lg border border-[#1f1f1f] relative overflow-visible">
+                      <div className="flex-1 space-y-1 relative">
                         <label className="text-[10px] text-[#808080] uppercase">Component Name</label>
                         <input 
                           type="text" 
                           required
                           value={c.name}
                           onChange={e => updateComponent(idx, 'name', e.target.value)}
-                          className="w-full bg-transparent border-b border-[#333] px-2 py-1 text-white focus:outline-none focus:border-[#00ff9d] transition-colors text-sm"
+                          onFocus={() => setFocusedComponentIdx(idx)}
+                          onBlur={() => setTimeout(() => setFocusedComponentIdx(null), 200)}
+                          className="w-full bg-transparent border-b border-[#333] px-2 py-1 text-white focus:outline-none focus:border-[#00ff9d] transition-colors text-sm relative z-0"
                           placeholder="e.g. Basic, HRA, PF"
+                          autoComplete="off"
                         />
+                        {matchedSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 w-full mt-1 bg-[#1a1a1a] border border-[#333] rounded-md shadow-2xl overflow-hidden z-50">
+                            {matchedSuggestions.map(s => (
+                              <button
+                                key={s}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm text-[#e0e0e0] hover:bg-[#a855f7] hover:text-white transition-colors"
+                                onClick={() => {
+                                  updateComponent(idx, 'name', s);
+                                  setFocusedComponentIdx(null);
+                                }}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="w-1/4 space-y-1">
                         <label className="text-[10px] text-[#808080] uppercase">Type</label>
@@ -379,7 +443,7 @@ export const SalaryOffers = () => {
                         <Minus className="w-5 h-5" />
                       </button>
                     </div>
-                  ))}
+                  )})}
 
                   <button 
                     type="button"
@@ -466,7 +530,7 @@ export const SalaryOffers = () => {
 
       {/* Deep Analytics Visualizer */}
       {advancedMetrics && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
           {/* Time Value Velocity */}
           <div className="glass-panel p-6 rounded-xl border border-[#1f1f1f] relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#00ff9d]/5 rounded-full blur-[50px] pointer-events-none"></div>
@@ -557,11 +621,11 @@ export const SalaryOffers = () => {
 
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#1f1f1f]">
                   <div>
-                    <div className="text-[10px] text-[#808080] uppercase mb-1">Avg annual growth</div>
+                    <div className="text-[10px] text-[#808080] uppercase mb-1">Avg annual hike</div>
                     <div className="text-xl font-mono text-[#00ff9d]">{advancedMetrics.careerVelocity.cagr.toFixed(1)}%</div>
                   </div>
                   <div>
-                    <div className="text-[10px] text-[#808080] uppercase mb-1">Avg Days per Switch</div>
+                    <div className="text-[10px] text-[#808080] uppercase mb-1">Avg Stay per Job</div>
                     <div className="text-xl font-mono text-[#a855f7]">{advancedMetrics.careerVelocity.avgSwitchTimeDays} <span className="text-xs">days</span></div>
                   </div>
                 </div>
@@ -572,6 +636,51 @@ export const SalaryOffers = () => {
                 <p className="text-xs text-[#808080]">Add at least 2 offers to calculate your career momentum metrics.</p>
               </div>
             )}
+          </div>
+
+          {/* Real Value & Predictions */}
+          <div className="glass-panel p-6 rounded-xl border border-[#1f1f1f] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#00f0ff]/5 rounded-full blur-[50px] pointer-events-none"></div>
+            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-[#00f0ff]" /> Power & Prediction
+            </h2>
+            <p className="text-[#808080] text-[10px] uppercase font-mono tracking-widest mb-6">Efficiency & Future Trend</p>
+            
+            <div className="space-y-5">
+              <div className="relative group">
+                <div className="text-[10px] text-[#808080] uppercase mb-1 flex items-center gap-1 justify-between">
+                  <span>CTC Efficiency (Liquidity)</span>
+                  <span className={`font-bold ${advancedMetrics.efficiency.ctcEfficiency >= 80 ? 'text-[#00ff9d]' : advancedMetrics.efficiency.ctcEfficiency >= 65 ? 'text-[#ffb800]' : 'text-[#ff0055]'}`}>
+                    {advancedMetrics.efficiency.ctcEfficiency.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-[#1f1f1f] rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-1000 ${advancedMetrics.efficiency.ctcEfficiency >= 80 ? 'bg-[#00ff9d]' : advancedMetrics.efficiency.ctcEfficiency >= 65 ? 'bg-[#ffb800]' : 'bg-[#ff0055]'}`} 
+                    style={{ width: `${Math.min(100, Math.max(0, advancedMetrics.efficiency.ctcEfficiency))}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {sortedOffers.length > 1 && (
+                 <>
+                   <div className="p-3 bg-[#141414] rounded-lg border border-[#1f1f1f] mt-4">
+                     <div className="text-[10px] text-[#808080] uppercase tracking-widest mb-1 mt-1 text-justify">
+                       Real Value vs {advancedMetrics.efficiency.baselineYear} (after 6% avg Inflation)
+                     </div>
+                     <div className="text-lg font-mono text-white line-through decoration-[#ff0055] decoration-2">₹{offersWithStats[offersWithStats.length - 1].stats.annualCTC.toLocaleString()}</div>
+                     <div className="text-xl font-mono text-[#00f0ff]">₹{Math.round(advancedMetrics.efficiency.realPurchasingPowerCTC).toLocaleString()}</div>
+                   </div>
+
+                   <div className="p-3 bg-gradient-to-br from-[#141414] to-[#1f1f1f] rounded-lg border border-[#a855f7]/30 mt-4 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                     <div className="text-[10px] text-[#a855f7] uppercase tracking-widest mb-1 flex items-center gap-1">
+                       <TrendingUp className="w-3 h-3"/> Predictive Next CTC (1 yr) 
+                     </div>
+                     <div className="text-2xl font-mono text-white">₹{Math.round(advancedMetrics.efficiency.predictedNextCTC).toLocaleString()}</div>
+                   </div>
+                 </>
+              )}
+            </div>
           </div>
         </div>
       )}
